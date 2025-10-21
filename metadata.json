@@ -1,0 +1,5 @@
+{
+  "name": "Speed Typing Game",
+  "description": "A speed typing game with three modes (Reaction Time, Word Typing, Paragraph Typing) and three difficulty levels. Test and improve your typing speed, accuracy, and reaction time with real-time feedback and post-game analysis.",
+  "requestFramePermissions": []
+}
