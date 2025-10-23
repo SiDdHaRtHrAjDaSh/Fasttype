@@ -31,7 +31,7 @@ export const getRandomParagraph = (difficulty: Difficulty, wordCount = 30): stri
 // --- COMPONENTS ---
 
 const StatCard: React.FC<{ label: string; value: string; color?: string }> = ({ label, value, color = 'text-slate-100' }) => (
-    <div className="bg-slate-700 p-4 rounded-lg">
+    <div className="bg-slate-700/50 backdrop-blur-sm p-4 rounded-lg transition-all duration-200 transform hover:scale-105 hover:bg-slate-700">
         <p className="text-sm text-slate-400">{label}</p>
         <p className={`text-3xl font-bold ${color}`}>{value}</p>
     </div>
@@ -39,8 +39,8 @@ const StatCard: React.FC<{ label: string; value: string; color?: string }> = ({ 
 
 const Results: React.FC<{ stats: GameStats; onPlayAgain: () => void; }> = ({ stats, onPlayAgain }) => {
     return (
-        <div className="bg-slate-800 p-8 rounded-lg shadow-xl animate-fade-in text-center">
-            <h2 className="text-3xl font-bold mb-6 text-cyan-400">Game Over!</h2>
+        <div className="bg-slate-800/80 backdrop-blur-md p-8 rounded-lg shadow-xl animate-fade-in text-center border border-slate-700">
+            <h2 className="text-3xl font-bold mb-6 text-cyan-400">Typing Test Results</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-lg mb-8">
                 <StatCard label="Time Taken" value={`${stats.time.toFixed(2)}s`} />
                 {stats.wpm > 0 && <StatCard label="WPM" value={stats.wpm.toFixed(0)} />}
@@ -54,7 +54,7 @@ const Results: React.FC<{ stats: GameStats; onPlayAgain: () => void; }> = ({ sta
             </div>
             <button
                 onClick={onPlayAgain}
-                className="w-full max-w-xs mx-auto bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg text-xl transition-transform transform hover:scale-105"
+                className="w-full max-w-xs mx-auto bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg text-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/50"
             >
                 Play Again
             </button>
@@ -109,6 +109,11 @@ const Game: React.FC<{
         onFinish(finalStats);
     }, [stats, onFinish, mode, userInput, textToType]);
 
+    const finishGameRef = useRef(finishGame);
+    useEffect(() => {
+        finishGameRef.current = finishGame;
+    }, [finishGame]);
+
     const generateNext = useCallback(() => {
         if (mode === GameMode.Reaction) {
             setTextToType(getRandomChar(difficulty));
@@ -136,7 +141,7 @@ const Game: React.FC<{
             timerRef.current = window.setInterval(() => {
                 setStats(s => {
                     if (s.time <= 1) {
-                        finishGame();
+                        finishGameRef.current();
                         return { ...s, time: 0 };
                     }
                     return { ...s, time: s.time - 1 };
@@ -144,7 +149,7 @@ const Game: React.FC<{
             }, 1000);
         }
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [mode, finishGame]);
+    }, [mode]);
 
     useEffect(() => {
         if (mode === GameMode.Reaction && stats.correct >= REACTION_TEST_LENGTH) {
@@ -170,7 +175,7 @@ const Game: React.FC<{
         if (mode === GameMode.Reaction) {
             e.preventDefault();
             if (stats.correct >= REACTION_TEST_LENGTH) return;
-            if (e.key === textToType) {
+            if (e.key.toLowerCase() === textToType.toLowerCase()) {
                 const reactionTime = Date.now() - charStartTime;
                 setStats(s => ({
                     ...s,
@@ -197,24 +202,35 @@ const Game: React.FC<{
     };
     
     const renderTextDisplay = () => {
-        if (mode === GameMode.Reaction) return <span className="text-cyan-300">{textToType}</span>;
+        const textSpan = (text: string, className = '') => <span key={text} className={`animate-pop-in ${className}`}>{text}</span>;
+        
+        if (mode === GameMode.Reaction) return textSpan(textToType, "text-cyan-300");
+
         if (mode === GameMode.Word) {
             let color = 'text-slate-400';
             if (userInput.length > 0) color = textToType.startsWith(userInput) ? 'text-green-400' : 'text-red-400';
             if (userInput === textToType) color = 'text-green-400';
-            return <span className={color}>{textToType}</span>;
+            return textSpan(textToType, color);
         }
         if (mode === GameMode.Paragraph) {
             return textToType.split('').map((char, index) => {
                 let color = 'text-slate-400';
-                if (index < userInput.length) color = char === userInput[index] ? 'text-green-400' : 'text-red-400';
-                return <span key={index} className={char === ' ' && userInput[index] !== ' ' && index < userInput.length ? 'bg-red-900' : color}>{char}</span>;
+                let extraClasses = '';
+                if (index < userInput.length) {
+                    color = char === userInput[index] ? 'text-green-400' : 'text-red-400';
+                    if (char === ' ' && userInput[index] !== ' ') {
+                        extraClasses = 'bg-red-900 rounded-sm';
+                    }
+                } else if (index === userInput.length) {
+                    extraClasses = 'bg-slate-600 rounded-sm animate-pulse';
+                }
+                return <span key={index} className={`${color} ${extraClasses}`}>{char}</span>;
             });
         }
     };
 
     return (
-        <div className="bg-slate-800 p-8 rounded-lg shadow-xl flex flex-col items-center gap-8 animate-fade-in w-full">
+        <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-8 rounded-lg shadow-xl flex flex-col items-center gap-8 animate-fade-in w-full">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-lg w-full">
                 <StatCard label="Time" value={mode === GameMode.Reaction ? (stats.time / 1000).toFixed(2) + 's' : String(stats.time)} />
                 <StatCard label={mode === GameMode.Reaction ? 'Correct' : 'Chars'} value={String(stats.correct)} color="text-green-400" />
@@ -222,7 +238,7 @@ const Game: React.FC<{
                 <StatCard label="Accuracy" value={stats.accuracy.toFixed(1) + '%'} color="text-yellow-400" />
             </div>
             
-            <div className="w-full text-center p-4 bg-slate-900 rounded-lg font-mono tracking-widest text-4xl min-h-[6rem] flex items-center justify-center">
+            <div className="w-full text-center p-4 bg-slate-900/70 rounded-lg font-mono tracking-widest text-4xl min-h-[6rem] flex items-center justify-center shadow-inner">
                 <div className={mode === GameMode.Paragraph ? "text-left text-xl leading-relaxed" : ""}>{renderTextDisplay()}</div>
             </div>
 
@@ -232,12 +248,12 @@ const Game: React.FC<{
                 value={userInput}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                className="w-full p-3 bg-slate-700 border-2 border-slate-600 rounded-lg text-center text-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                className="w-full p-3 bg-slate-700 border-2 border-slate-600 rounded-lg text-center text-xl focus:outline-none focus:border-cyan-500 transition-colors font-mono"
                 autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck="false"
-                disabled={stats.time <= 0 && mode !== GameMode.Reaction}
+                disabled={(stats.time <= 0 && mode !== GameMode.Reaction) || (mode === GameMode.Reaction && stats.correct >= REACTION_TEST_LENGTH)}
             />
 
-            <button onClick={finishGame} className="mt-4 px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors">
+            <button onClick={finishGame} className="mt-4 px-6 py-2 bg-transparent border border-red-500 text-red-400 font-bold rounded-lg transition-all hover:bg-red-500/20 hover:text-red-300">
                 End Game
             </button>
         </div>
@@ -248,26 +264,51 @@ const Setup: React.FC<{ onStart: (mode: GameMode, difficulty: Difficulty) => voi
     const [mode, setMode] = useState<GameMode>(GameMode.Reaction);
     const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.Easy);
 
-    const ModeButton: React.FC<{ value: GameMode, label: string }> = ({ value, label }) => (
-        <button onClick={() => setMode(value)} className={`px-4 py-2 rounded-md transition-colors w-full ${mode === value ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
-            {label}
+    const ReactionIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+    );
+    const WordIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+    );
+    const ParagraphIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+    );
+
+    {/* FIX: Replaced JSX.Element with React.ReactElement to resolve namespace error. */}
+    const ModeCard: React.FC<{ value: GameMode, label: string, icon: React.ReactElement }> = ({ value, label, icon }) => (
+        <button 
+            onClick={() => setMode(value)} 
+            className={`p-6 rounded-lg transition-all duration-200 ease-in-out flex flex-col items-center gap-4 text-center border-2
+                ${mode === value 
+                    ? 'bg-cyan-500/20 border-cyan-400 scale-105 shadow-lg shadow-cyan-500/10' 
+                    : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500 transform hover:scale-105'
+                }`}
+        >
+            {icon}
+            <span className="font-semibold">{label}</span>
         </button>
     );
 
     const DifficultyButton: React.FC<{ value: Difficulty, label: string }> = ({ value, label }) => (
-        <button onClick={() => setDifficulty(value)} className={`px-4 py-2 rounded-md transition-colors w-full ${difficulty === value ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
+        <button onClick={() => setDifficulty(value)} className={`px-4 py-2 rounded-md transition-colors w-full font-semibold ${difficulty === value ? 'bg-cyan-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
             {label}
         </button>
     );
 
     return (
-        <div className="bg-slate-800 p-8 rounded-lg shadow-xl animate-fade-in">
+        <div className="bg-slate-800/80 backdrop-blur-md p-8 rounded-lg shadow-xl animate-fade-in border border-slate-700 w-full">
             <div className="mb-6">
                 <h2 className="text-2xl font-semibold mb-4 text-center">Select Game Mode</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <ModeButton value={GameMode.Reaction} label="Reaction Time" />
-                    <ModeButton value={GameMode.Word} label="Word Typing" />
-                    <ModeButton value={GameMode.Paragraph} label="Paragraph Typing" />
+                    <ModeCard value={GameMode.Reaction} label="Reaction Time" icon={<ReactionIcon />} />
+                    <ModeCard value={GameMode.Word} label="Word Typing" icon={<WordIcon />} />
+                    <ModeCard value={GameMode.Paragraph} label="Paragraph Typing" icon={<ParagraphIcon />} />
                 </div>
             </div>
             <div className="mb-8">
@@ -278,7 +319,7 @@ const Setup: React.FC<{ onStart: (mode: GameMode, difficulty: Difficulty) => voi
                     <DifficultyButton value={Difficulty.Hard} label="Hard" />
                 </div>
             </div>
-            <button onClick={() => onStart(mode, difficulty)} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg text-xl transition-transform transform hover:scale-105">
+            <button onClick={() => onStart(mode, difficulty)} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg text-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/50">
                 Start Game
             </button>
         </div>
@@ -307,15 +348,27 @@ const App: React.FC = () => {
         setGameState(GameState.Setup);
     }, []);
 
+    const renderGameState = () => {
+        switch (gameState) {
+            case GameState.Playing:
+                return <Game key="playing" mode={gameMode} difficulty={difficulty} onFinish={handleGameFinish} />;
+            case GameState.Finished:
+                return lastGameStats && <Results key="finished" stats={lastGameStats} onPlayAgain={handlePlayAgain} />;
+            case GameState.Setup:
+            default:
+                return <Setup key="setup" onStart={handleGameStart} />;
+        }
+    }
+
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
             <main className="w-full max-w-4xl mx-auto flex flex-col items-center">
-                <h1 className="text-4xl md:text-5xl font-bold text-center mb-8 text-cyan-400">
+                <h1 className="text-4xl md:text-5xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-fuchsia-500">
                     Speed Typing Game
                 </h1>
-                {gameState === GameState.Setup && <Setup onStart={handleGameStart} />}
-                {gameState === GameState.Playing && <Game mode={gameMode} difficulty={difficulty} onFinish={handleGameFinish} />}
-                {gameState === GameState.Finished && lastGameStats && <Results stats={lastGameStats} onPlayAgain={handlePlayAgain} />}
+                <div className="w-full">
+                    {renderGameState()}
+                </div>
             </main>
         </div>
     );
